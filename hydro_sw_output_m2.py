@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""构建对外输送风光水模型"""
 
 __author__ = "Linwei Sang"
 __email__ = "sanglinwei@gmail.com"
@@ -60,7 +61,6 @@ if __name__ == '__main__':
     inflow_hour_np = Natural_inflow * station_hour_np
 
     # 确定性优化模型
-
     # 水电站基本信息
     Q_min = 0
     Q_max = 20e4
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     constr += [V_h[0] == V_h_init + inflow_hour_np[0] - Q_h[0]]
     constr += [V_h_init <= V_max, V_h_init >= V_min]
 
-    # 抽水蓄能建模
+    # 抽水蓄能建模参数
     C_ps = cp.Parameter()
     P_psmax = cp.Parameter()
 
@@ -155,7 +155,7 @@ if __name__ == '__main__':
     Cost_cps = 1  # 抽水蓄能电站的装机容量成本
     Cost_pps = 1  # 抽水蓄能电站的库容量成本
 
-    # 抽水蓄能建模
+    # 抽水蓄能建模约束条件
     for t in range(1, T):
         constr += [E[t] == E[t - 1] - p_ps[t]]
         if (t + 1) % 24 == 0:
@@ -165,15 +165,6 @@ if __name__ == '__main__':
     constr += [c_ps_max * C_ps >= E]
     constr += [p_ps <= P_psmax]
     constr += [p_ps >= - P_psmax]
-
-    # 火电站
-    p_g = cp.Variable(T, nonneg=True)
-    c_g_min = 0.2
-    c_g_max = 1
-    # 火电容量
-    C_g = cp.Variable(nonneg=True)
-    constr += [p_g >= c_g_min * C_g]
-    constr += [p_g <= c_g_max * C_g]
 
     # 风光建模
     ratio = cp.Parameter()
@@ -187,27 +178,49 @@ if __name__ == '__main__':
     drop_sw = cp.Parameter()
     constr += [p_sw >= 0, p_sw <= P_SW]
     constr += [cp.sum(P_SW - p_sw) <= drop_sw * cp.sum(P_SW)]
-    # 负荷建模
+
+    # 外送负荷建模
     C_d = cp.Parameter()
     P_d = C_d * demand[:T]
-    # 功率平衡 P_h 120 WM
-    constr += [p_sw + p_ps + P_h + p_g == P_d]
-    # 最小化抽水蓄能成本
-    # obj = cp.Minimize(Cost_cps * C_ps + Cost_pps * P_psmax)
-    # 最大化消纳风光的成本
-    obj = cp.Maximize(C_sw - 2000 * C_g)
+
+    # 火电容量
+    C_g = cp.Variable(nonneg=True)
+    p_g = cp.Variable(T, nonneg=True)
+    c_g_min = 0.2
+    c_g_max = 1
+    constr += [p_g >= c_g_min * C_g]
+    constr += [p_g <= c_g_max * C_g]
+
+    # 风光水对外输出
+    var = cp.Parameter(nonneg=True)  # 可再生能源波动率
+    p_re = cp.Variable(T, nonneg=True)  # 可再生能源波动
+    p_net = cp.Variable(T, nonneg=True)  # 净负荷波动
+    p_avg = cp.Variable(1, nonneg=True)  # 平均出力
+    constr += [p_re == p_sw + p_ps + P_h]
+    # constr += [p_net == P_d - p_re]
+    # constr += [p_avg == cp.sum(p_net) / T]
+    # constr += [cp.norm(p_net - p_avg, 1) / T <= var]
+    constr += [p_avg == cp.sum(p_re) / T]
+    constr += [cp.norm(p_re - p_avg, 1) / T <= var]
+
+    # 构建目标函数
+    obj = cp.Maximize(C_sw - 200000 * C_g)
     problem = cp.Problem(obj, constr)
 
-    ratio.value = 1
-    C_d.value = 180
-    P_h_max.value = 100
+    # 求解模型
+    ratio.value = 0.5
+    C_d.value = 600
+    P_h_max.value = 200
     P_psmax.value = 0
     C_ps.value = 300000
-    drop_sw.value = 0.05
+    drop_sw.value = 0
+    var.value = 0.2
     problem.solve(solver=cp.GUROBI)
     print('消纳风光的容量{}'.format(C_sw.value))
     print('单位水电支持多少风光{}'.format(C_sw.value / (P_h_max.value + P_psmax.value)))
+    print('火电装机容量{}'.format(C_g.value))
 
+    # 绘制对外输出的可视化图像
     # 抽蓄占比
     ratio_hp_np = np.linspace(0, 1, 10 + 1)
     # 光占比
@@ -216,73 +229,23 @@ if __name__ == '__main__':
     cap_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
     # 单位风光支持多少水电
     ratio_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
-    # 火电需求
-    thermal_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
-
     for x_idx, v in enumerate(tqdm(ratio_hp_np)):
         for y_idx, r in enumerate(ratio_sw_np):
+            ratio.value = 0.5
+            C_d.value = 600
+            P_h_max.value = 200
+            P_psmax.value = 0
+            C_ps.value = 300000
+            drop_sw.value = 0
+            var.value = 0.2
+
             C_d.value = 200
             C_ps.value = 30000
-            drop_sw.value = 0.01
+            drop_sw.value = 0
             ratio.value = r
             P_h_max.value = 100 * (1 - v)
             P_psmax.value = 100 * v
             problem.solve(solver=cp.GUROBI)
             cap_sw_mat[y_idx, x_idx] = C_sw.value
             ratio_sw_mat[y_idx, x_idx] = C_sw.value / 100
-            thermal_mat[y_idx, x_idx] = C_g.value
-    # 保存数据
-    np.save('./results/cap_sw.npy', cap_sw_mat)
-    np.save('./results/ratio_sw.npy', ratio_sw_mat)
-    np.save('./results/thermal_mat.npy', cap_sw_mat)
 
-    # 绘制消纳容量
-    X, Y = np.meshgrid(ratio_hp_np, ratio_sw_np)
-    plt.rc('font', family='Times New Roman', style='normal', size=13)
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
-    surf = ax.plot_surface(X, Y, cap_sw_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
-    cset = ax.contourf(X, Y, cap_sw_mat[:, :], zdir='z', offset=np.min(cap_sw_mat[:, :]), cmap=cm.coolwarm)
-    ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
-    ax.set_ylabel('光占比', fontproperties=font, rotation=50)
-    ax.set_zlabel('新能源消纳容量/MW', fontproperties=font)
-    plt.margins(x=0)
-    plt.margins(y=0)
-    plt.grid()
-    plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
-    plt.savefig('./figs/消纳容量m1.png', dpi=900, transparent=True, pad_inches=0)
-    plt.show()
-
-    # 绘制单位水电支持风光的比例
-    X, Y = np.meshgrid(ratio_hp_np, ratio_sw_np)
-    plt.rc('font', family='Times New Roman', style='normal', size=13)
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
-    surf = ax.plot_surface(X, Y, ratio_sw_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
-    cset = ax.contourf(X, Y, ratio_sw_mat[:, :], zdir='z', offset=np.min(ratio_sw_mat[:, :]), cmap=cm.coolwarm)
-    ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
-    ax.set_ylabel('光占比', fontproperties=font, rotation=50)
-    ax.set_zlabel('单位水电支持风光比例', fontproperties=font)
-    plt.margins(x=0)
-    plt.margins(y=0)
-    plt.grid()
-    plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
-    plt.savefig('./figs/支持风光比例m1.png', dpi=900, transparent=True, pad_inches=0)
-    plt.show()
-
-    # 绘制对火电的需求
-    X, Y = np.meshgrid(ratio_hp_np, ratio_sw_np)
-    plt.rc('font', family='Times New Roman', style='normal', size=13)
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
-    surf = ax.plot_surface(X, Y, thermal_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
-    cset = ax.contourf(X, Y, thermal_mat[:, :], zdir='z', offset=np.min(thermal_mat[:, :]), cmap=cm.coolwarm)
-    ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
-    ax.set_ylabel('光占比', fontproperties=font, rotation=50)
-    ax.set_zlabel('火电装机/MW', fontproperties=font)
-    plt.margins(x=0)
-    plt.margins(y=0)
-    plt.grid()
-    plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
-    plt.savefig('./figs/火电调节能力m1.png', dpi=900, transparent=True, pad_inches=0)
-    plt.show()

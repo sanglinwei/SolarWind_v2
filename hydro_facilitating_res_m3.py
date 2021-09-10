@@ -74,19 +74,19 @@ if __name__ == '__main__':
     Ramp = 60
     P_h_min = 0  # 7
     # P_h_max = 120
-    P_h_max = cp.Variable(nonneg=True)
+    P_h_max = cp.Parameter(nonneg=True)
     # 小时级的自然水流
     inflow_hour_np = Natural_inflow * station_hour_np
 
     sigma = 0.2  # 不确定度
-    N_scenario = 4  # 场景数目
+    N_scenario = 10  # 场景数目
     cap_sigma_sto, thermal_sigma_sto = {}, {}
     cap_sigma_rob, thermal_sigma_rob = {}, {}
     for sigma in np.linspace(0, 0.2, 5+1):
         cap_dic = {}  # 存储不同场景下的消纳容量
         thermal_dic = {}  # 存储不同场景下的火电需求
         for n_scenario in range(N_scenario):
-            T = 24  # 计算周期
+            T = 24 * 3  # 计算周期
             # 优化过程中的库容
             V_h = cp.Variable(T, nonneg=True)
             # 初始库容
@@ -191,7 +191,7 @@ if __name__ == '__main__':
             # 风光打捆
             P_SW = (solar[:T] * ratio + wind[:T] * (1 - ratio)) * C_sw
             # 考虑随机性
-            k_random = np.random.uniform(-2, 2, T)
+            k_random = np.random.uniform(-1, 1, T)
             P_SW = P_SW + sigma * cp.multiply(k_random, P_SW)
 
             p_sw = cp.Variable(T, nonneg=True)
@@ -215,7 +215,7 @@ if __name__ == '__main__':
             P_h_max.value = 100
             P_psmax.value = 0
             C_ps.value = 300000
-            drop_sw.value = 0.1
+            drop_sw.value = 0.02
             problem.solve(solver=cp.GUROBI)
             print('消纳风光的容量{}'.format(C_sw.value))
             print('单位水电支持多少风光{}'.format(C_sw.value / (P_h_max.value + P_psmax.value)))
@@ -235,7 +235,7 @@ if __name__ == '__main__':
                 for y_idx, r in enumerate(ratio_sw_np):
                     C_d.value = 200
                     C_ps.value = 30000
-                    drop_sw.value = 0.1
+                    drop_sw.value = 0.01
                     ratio.value = r
                     P_h_max.value = 100 * (1 - v)
                     P_psmax.value = 100 * v
@@ -266,7 +266,9 @@ if __name__ == '__main__':
     thermal_sigma_rob_pd = pd.DataFrame(dic_np2list(thermal_sigma_rob))
     cap_sigma_sto_pd = pd.DataFrame(dic_np2list(cap_sigma_sto))
     cap_sigma_rob_pd = pd.DataFrame(dic_np2list(cap_sigma_rob))
-
+    # 保存数据
+    cap_sigma_sto_pd.to_csv('./results/cap_sigma_sto_drop002.csv')
+    cap_sigma_rob_pd.to_csv('./results/cap_sigma_rob_drop002.csv')
     # 绘图相关代码
     # 绘制随机消纳容量
     X, Y = np.meshgrid(ratio_hp_np, np.linspace(0, 0.2, 5+1))

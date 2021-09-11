@@ -196,56 +196,24 @@ if __name__ == '__main__':
     p_re = cp.Variable(T, nonneg=True)  # 可再生能源波动
     p_net = cp.Variable(T, nonneg=True)  # 净负荷波动
     p_avg = cp.Variable(1, nonneg=True)  # 平均出力
-    constr += [p_re == p_sw + p_ps + P_h]
-    # constr += [p_net == P_d - p_re]
-    # constr += [p_avg == cp.sum(p_net) / T]
-    # constr += [cp.norm(p_net - p_avg, 1) / T <= var]
-    constr += [p_avg == cp.sum(p_re) / T]
-    constr += [cp.norm(p_re - p_avg, 1) / T <= var]
+    constr += [p_re == p_sw + p_ps + P_h + p_g]
+    constr += [p_net == P_d - p_re]
+    constr += [p_avg == cp.sum(p_net) / T]
+    constr += [cp.norm(p_net - p_avg, 1) / T <= var]
 
     # 构建目标函数
-    obj = cp.Maximize(C_sw - 200000 * C_g)
+    obj = cp.Maximize(C_sw - 20000 * C_g)
     problem = cp.Problem(obj, constr)
 
     # 求解模型
     ratio.value = 0.5
     C_d.value = 600
-    P_h_max.value = 200
-    P_psmax.value = 0
+    P_h_max.value = 0
+    P_psmax.value = 200
     C_ps.value = 300000
-    drop_sw.value = 0
+    drop_sw.value = 0.1  # 弃风光率
     var.value = 0.2
     problem.solve(solver=cp.GUROBI)
     print('消纳风光的容量{}'.format(C_sw.value))
     print('单位水电支持多少风光{}'.format(C_sw.value / (P_h_max.value + P_psmax.value)))
     print('火电装机容量{}'.format(C_g.value))
-
-    # 绘制对外输出的可视化图像
-    # 抽蓄占比
-    ratio_hp_np = np.linspace(0, 1, 10 + 1)
-    # 光占比
-    ratio_sw_np = np.linspace(0, 1, 10 + 1)
-    # 消纳风光的容量
-    cap_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
-    # 单位风光支持多少水电
-    ratio_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
-    for x_idx, v in enumerate(tqdm(ratio_hp_np)):
-        for y_idx, r in enumerate(ratio_sw_np):
-            ratio.value = 0.5
-            C_d.value = 600
-            P_h_max.value = 200
-            P_psmax.value = 0
-            C_ps.value = 300000
-            drop_sw.value = 0
-            var.value = 0.2
-
-            C_d.value = 200
-            C_ps.value = 30000
-            drop_sw.value = 0
-            ratio.value = r
-            P_h_max.value = 100 * (1 - v)
-            P_psmax.value = 100 * v
-            problem.solve(solver=cp.GUROBI)
-            cap_sw_mat[y_idx, x_idx] = C_sw.value
-            ratio_sw_mat[y_idx, x_idx] = C_sw.value / 100
-

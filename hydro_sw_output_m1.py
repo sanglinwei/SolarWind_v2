@@ -213,7 +213,7 @@ if __name__ == '__main__':
     P_h_max.value = 200
     P_psmax.value = 0
     C_ps.value = 300000
-    drop_sw.value = 0
+    drop_sw.value = 0.02
     var.value = 0.2
     problem.solve(solver=cp.GUROBI)
     print('消纳风光的容量{}'.format(C_sw.value))
@@ -236,7 +236,7 @@ if __name__ == '__main__':
             C_d.value = 600
             C_ps.value = 30000
             drop_sw.value = 0
-            ratio.value = 0.5
+            ratio.value = 0.8
             P_h_max.value = 100 * (1 - v)
             P_psmax.value = 100 * v
             problem.solve(solver=cp.GUROBI)
@@ -251,7 +251,7 @@ if __name__ == '__main__':
     surf = ax.plot_surface(X, Y, cap_sw_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
     cset = ax.contourf(X, Y, cap_sw_mat[:, :], zdir='z', offset=np.min(cap_sw_mat[:, :]), cmap=cm.coolwarm)
     ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
-    ax.set_ylabel('光占比', fontproperties=font, rotation=50)
+    ax.set_ylabel('风光允许波动率', fontproperties=font, rotation=50)
     ax.set_zlabel('新能源消纳容量/MW', fontproperties=font)
     plt.margins(x=0)
     plt.margins(y=0)
@@ -267,8 +267,8 @@ if __name__ == '__main__':
     surf = ax.plot_surface(X, Y, ratio_sw_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
     cset = ax.contourf(X, Y, ratio_sw_mat[:, :], zdir='z', offset=np.min(ratio_sw_mat[:, :]), cmap=cm.coolwarm)
     ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
-    ax.set_ylabel('光占比', fontproperties=font, rotation=50)
-    ax.set_zlabel('新能源消纳容量/MW', fontproperties=font)
+    ax.set_ylabel('风光允许波动率', fontproperties=font, rotation=50)
+    ax.set_zlabel('新能源消纳比例', fontproperties=font)
     plt.margins(x=0)
     plt.margins(y=0)
     plt.grid()

@@ -244,7 +244,7 @@ if __name__ == '__main__':
 
     np.save('./results/cap_sw_om1.npy', cap_sw_mat)
     # 绘制消纳容量
-    X, Y = np.meshgrid(ratio_hp_np, var_sw_np)
+    X, Y = np.meshgrid(ratio_hp_np, var_sw_np / 100)
     plt.rc('font', family='Times New Roman', style='normal', size=13)
     fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
     plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
@@ -260,7 +260,7 @@ if __name__ == '__main__':
     plt.savefig('./figs/消纳容量om1_1.png', dpi=900, transparent=True, pad_inches=0)
     plt.show()
 
-    X, Y = np.meshgrid(ratio_hp_np, var_sw_np)
+    X, Y = np.meshgrid(ratio_hp_np, var_sw_np / 100)
     plt.rc('font', family='Times New Roman', style='normal', size=13)
     fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
     plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
@@ -268,10 +268,10 @@ if __name__ == '__main__':
     cset = ax.contourf(X, Y, ratio_sw_mat[:, :], zdir='z', offset=np.min(ratio_sw_mat[:, :]), cmap=cm.coolwarm)
     ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
     ax.set_ylabel('风光水允许波动率', fontproperties=font, rotation=50)
-    ax.set_zlabel('新能源消纳比例', fontproperties=font)
+    ax.set_zlabel('单位水电支持新能源比例', fontproperties=font)
     plt.margins(x=0)
     plt.margins(y=0)
     plt.grid()
     plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
-    plt.savefig('./figs/支持风光比例om1_1.png', dpi=900, transparent=True, pad_inches=0)
+    plt.savefig('./figs/单位水电支持新能源比例om1_1.png', dpi=900, transparent=True, pad_inches=0)
     plt.show()

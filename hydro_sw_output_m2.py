@@ -201,21 +201,21 @@ if __name__ == '__main__':
     # constr += [p_avg == cp.sum(p_net) / T]
     # constr += [cp.norm(p_net - p_avg, 1) / T <= var]
     constr += [p_avg == cp.sum(p_re) / T]
-    constr += [cp.norm(p_re - p_avg, 1) / T <= var ]
+    constr += [cp.norm(p_re - p_avg, 1) / T <= var]
 
     # 构建目标函数
     obj = cp.Maximize(C_sw - 20000 * C_g)
     problem = cp.Problem(obj, constr)
 
     # 求解模型
-    ratio.value = 0.5
+    ratio.value = 0
     C_d.value = 600
     P_h_max.value = 0
-    P_psmax.value = 200
+    P_psmax.value = 100
     C_ps.value = 300000
-    drop_sw.value = 0.1  # 弃风光率
-    var.value = 0.2
-    problem.solve(solver=cp.GUROBI)
+    drop_sw.value = 0  # 弃风光率
+    var.value = 0.1
+    problem.solve(solver=cp.GUROBI, MIPGAP=0.05)
     print('消纳风光的容量{}'.format(C_sw.value))
     print('单位水电支持多少风光{}'.format(C_sw.value / (P_h_max.value + P_psmax.value)))
     print('火电装机容量{}'.format(C_g.value))
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     # 单位风光支持多少水电
     ratio_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
     for x_idx, v in enumerate(tqdm(ratio_hp_np)):
-        for y_idx, r in enumerate(ratio_sw_np):
+        for y_idx, r in enumerate(tqdm(ratio_sw_np)):
             var.value = 10
             C_d.value = 600
             C_ps.value = 30000
@@ -239,7 +239,7 @@ if __name__ == '__main__':
             ratio.value = r
             P_h_max.value = 100 * (1 - v)
             P_psmax.value = 100 * v
-            problem.solve(solver=cp.GUROBI)
+            problem.solve(solver=cp.GUROBI, MIPGAP=0.05)
             cap_sw_mat[y_idx, x_idx] = C_sw.value
             ratio_sw_mat[y_idx, x_idx] = C_sw.value / 100
 
@@ -269,11 +269,11 @@ if __name__ == '__main__':
     cset = ax.contourf(X, Y, ratio_sw_mat[:, :], zdir='z', offset=np.min(ratio_sw_mat[:, :]), cmap=cm.coolwarm)
     ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
     ax.set_ylabel('光占比', fontproperties=font, rotation=50)
-    ax.set_zlabel('新能源消纳比例', fontproperties=font)
+    ax.set_zlabel('单位水电支持新能源比例', fontproperties=font)
     plt.margins(x=0)
     plt.margins(y=0)
     plt.grid()
     plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
-    plt.savefig('./figs/支持风光比例om2.png', dpi=900, transparent=True, pad_inches=0)
+    plt.savefig('./figs/单位水电支持新能源比例om2.png', dpi=900, transparent=True, pad_inches=0)
     plt.show()
 

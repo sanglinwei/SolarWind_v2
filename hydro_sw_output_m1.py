@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""构建对外输送风光水模型"""
+"""构建对外输送风光水模型，分析风光允许波动率对消纳风光容量的影响"""
 
 __author__ = "Linwei Sang"
 __email__ = "sanglinwei@gmail.com"
@@ -196,7 +196,7 @@ if __name__ == '__main__':
     p_re = cp.Variable(T, nonneg=True)   # 可再生能源波动
     p_net = cp.Variable(T, nonneg=True)  # 净负荷波动
     p_avg = cp.Variable(1, nonneg=True)  # 平均出力
-    constr += [p_re == p_sw + p_ps + P_h]
+    constr += [p_re == p_sw + p_ps + P_h + p_g]
     # constr += [p_net == P_d - p_re]
     # constr += [p_avg == cp.sum(p_net) / T]
     # constr += [cp.norm(p_net - p_avg, 1) / T <= var]
@@ -204,45 +204,45 @@ if __name__ == '__main__':
     constr += [cp.norm(p_re - p_avg, 1) / T <= var]
 
     # 构建目标函数
-    obj = cp.Maximize(C_sw - 200000 * C_g)
+    obj = cp.Maximize(C_sw - 20000 * C_g)
     problem = cp.Problem(obj, constr)
-
     # 求解模型
-    ratio.value = 0.5
+    ratio.value = 0.8
     C_d.value = 600
-    P_h_max.value = 200
+    P_h_max.value = 100
     P_psmax.value = 0
-    C_ps.value = 300000
-    drop_sw.value = 0.02
-    var.value = 0.2
-    problem.solve(solver=cp.GUROBI)
+    C_ps.value = 3000000
+    drop_sw.value = 0
+    var.value = 0.1
+    problem.solve(solver=cp.GUROBI, MIPGap=0.05)
     print('消纳风光的容量{}'.format(C_sw.value))
     print('单位水电支持多少风光{}'.format(C_sw.value / (P_h_max.value + P_psmax.value)))
-    print('火电装机容量{}'.format(C_g.value))
+    print('需要火电容量{}'.format(C_g.value))
 
     # 灵敏度分析
     # 抽蓄占比
     ratio_hp_np = np.linspace(0, 1, 10 + 1)
     # 光占比
     ratio_sw_np = np.linspace(0, 1, 10 + 1)
-    var_sw_np = np.linspace(0, 0.2, 10+1)
+    var_sw_np = np.linspace(0, 0.2, 5+1) * 100
     # 消纳风光的容量
-    cap_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
+    cap_sw_mat = np.zeros((var_sw_np.shape[0], ratio_hp_np.shape[0]))
     # 单位风光支持多少水电
-    ratio_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
+    ratio_sw_mat = np.zeros((var_sw_np.shape[0], ratio_hp_np.shape[0]))
     for x_idx, v in enumerate(tqdm(ratio_hp_np)):
-        for y_idx, r in enumerate(var_sw_np):
+        for y_idx, r in enumerate(tqdm(var_sw_np)):
             var.value = r
             C_d.value = 600
-            C_ps.value = 30000
+            C_ps.value = 3000000
             drop_sw.value = 0
             ratio.value = 0.8
             P_h_max.value = 100 * (1 - v)
             P_psmax.value = 100 * v
-            problem.solve(solver=cp.GUROBI)
+            problem.solve(solver=cp.GUROBI, MIPGap=0.05)
             cap_sw_mat[y_idx, x_idx] = C_sw.value
             ratio_sw_mat[y_idx, x_idx] = C_sw.value / 100
 
+    np.save('./results/cap_sw_om1.npy', cap_sw_mat)
     # 绘制消纳容量
     X, Y = np.meshgrid(ratio_hp_np, var_sw_np)
     plt.rc('font', family='Times New Roman', style='normal', size=13)
@@ -251,13 +251,13 @@ if __name__ == '__main__':
     surf = ax.plot_surface(X, Y, cap_sw_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
     cset = ax.contourf(X, Y, cap_sw_mat[:, :], zdir='z', offset=np.min(cap_sw_mat[:, :]), cmap=cm.coolwarm)
     ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
-    ax.set_ylabel('风光允许波动率', fontproperties=font, rotation=50)
+    ax.set_ylabel('风光水允许波动率', fontproperties=font, rotation=50)
     ax.set_zlabel('新能源消纳容量/MW', fontproperties=font)
     plt.margins(x=0)
     plt.margins(y=0)
     plt.grid()
     plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
-    plt.savefig('./figs/消纳容量om1.png', dpi=900, transparent=True, pad_inches=0)
+    plt.savefig('./figs/消纳容量om1_1.png', dpi=900, transparent=True, pad_inches=0)
     plt.show()
 
     X, Y = np.meshgrid(ratio_hp_np, var_sw_np)
@@ -267,11 +267,11 @@ if __name__ == '__main__':
     surf = ax.plot_surface(X, Y, ratio_sw_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
     cset = ax.contourf(X, Y, ratio_sw_mat[:, :], zdir='z', offset=np.min(ratio_sw_mat[:, :]), cmap=cm.coolwarm)
     ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
-    ax.set_ylabel('风光允许波动率', fontproperties=font, rotation=50)
+    ax.set_ylabel('风光水允许波动率', fontproperties=font, rotation=50)
     ax.set_zlabel('新能源消纳比例', fontproperties=font)
     plt.margins(x=0)
     plt.margins(y=0)
     plt.grid()
     plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
-    plt.savefig('./figs/支持风光比例om1.png', dpi=900, transparent=True, pad_inches=0)
+    plt.savefig('./figs/支持风光比例om1_1.png', dpi=900, transparent=True, pad_inches=0)
     plt.show()

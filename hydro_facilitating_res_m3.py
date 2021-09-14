@@ -319,7 +319,7 @@ if __name__ == '__main__':
     plt.margins(y=0)
     plt.grid()
     # 删除了颜色图
-    plt.savefig('./figs/消纳容量鲁棒优化m3.png', dpi=900, transparent=True, pad_inches=0)
+    plt.savefig('./figs/消纳容量对比m3.png', dpi=900, transparent=True, pad_inches=0)
     plt.show()
 
     # 绘制对火电的需求

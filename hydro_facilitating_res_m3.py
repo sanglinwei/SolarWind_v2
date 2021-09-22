@@ -207,7 +207,7 @@ if __name__ == '__main__':
             # 最小化抽水蓄能成本
             # obj = cp.Minimize(Cost_cps * C_ps + Cost_pps * P_psmax)
             # 最大化消纳风光的成本
-            obj = cp.Maximize(C_sw - 2000 * C_g)
+            obj = cp.Maximize(C_sw - 2000 * C_g - 100 * cp.max(p_ps))
             problem = cp.Problem(obj, constr)
 
             ratio.value = 1

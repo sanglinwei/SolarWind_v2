@@ -195,9 +195,12 @@ if __name__ == '__main__':
     # 最小化抽水蓄能成本
     # obj = cp.Minimize(Cost_cps * C_ps + Cost_pps * P_psmax)
     # 最大化消纳风光的成本
-    obj = cp.Maximize(C_sw - 2000 * C_g)
+    obj = cp.Maximize(C_sw - 2000 * C_g - 100 * cp.max(p_ps))
+    # 最大化风光消纳并考虑舍弃风光的成本
+    # obj = cp.Maximize(C_sw - 1 * cp.sum(P_SW - p_sw))
     problem = cp.Problem(obj, constr)
 
+    C_g.value = 200
     ratio.value = 1
     C_d.value = 180
     P_h_max.value = 100
@@ -209,16 +212,17 @@ if __name__ == '__main__':
     print('单位水电支持多少风光{}'.format(C_sw.value / (P_h_max.value + P_psmax.value)))
 
     # 抽蓄占比
-    ratio_hp_np = np.linspace(0, 1, 10 + 1)
+    ratio_hp_np = np.linspace(0, 1, 10 + 1)  # 10 og
     # 光占比
-    ratio_sw_np = np.linspace(0, 1, 10 + 1)
+    ratio_sw_np = np.linspace(0, 1, 10 + 1)  # 10 og
     # 消纳风光的容量
     cap_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
     # 单位风光支持多少水电
     ratio_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
     # 火电需求
     thermal_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
-
+    # 存储舍弃风光量
+    drop_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
     for x_idx, v in enumerate(tqdm(ratio_hp_np)):
         for y_idx, r in enumerate(ratio_sw_np):
             C_d.value = 200
@@ -227,14 +231,18 @@ if __name__ == '__main__':
             ratio.value = r
             P_h_max.value = 100 * (1 - v)
             P_psmax.value = 100 * v
+            # C_g.value = 120
             problem.solve(solver=cp.GUROBI)
-            cap_sw_mat[y_idx, x_idx] = C_sw.value
-            ratio_sw_mat[y_idx, x_idx] = C_sw.value / 100
-            thermal_mat[y_idx, x_idx] = C_g.value
+            if problem.status not in ["infeasible", "unbounded", 'infeasible_inaccurate']:
+                cap_sw_mat[y_idx, x_idx] = C_sw.value
+                ratio_sw_mat[y_idx, x_idx] = C_sw.value / 100
+                thermal_mat[y_idx, x_idx] = C_g.value
+                drop_mat[y_idx, x_idx] = np.sum(P_SW.value - p_sw.value) / np.sum(P_SW.value)
     # 保存数据
     np.save('./results/cap_sw.npy', cap_sw_mat)
     np.save('./results/ratio_sw.npy', ratio_sw_mat)
     np.save('./results/thermal_mat.npy', cap_sw_mat)
+    np.save('./results/drop_mat.npy', drop_mat)
 
     # 绘制消纳容量
     X, Y = np.meshgrid(ratio_hp_np, ratio_sw_np)
@@ -268,6 +276,23 @@ if __name__ == '__main__':
     plt.grid()
     plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
     plt.savefig('./figs/支持风光比例m1.png', dpi=900, transparent=True, pad_inches=0)
+    plt.show()
+
+    # 绘制弃风光率
+    X, Y = np.meshgrid(ratio_hp_np, ratio_sw_np)
+    plt.rc('font', family='Times New Roman', style='normal', size=13)
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
+    surf = ax.plot_surface(X, Y, drop_mat[:, :], cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    cset = ax.contourf(X, Y, drop_mat[:, :], zdir='z', offset=np.min(thermal_mat[:, :]), cmap=cm.coolwarm)
+    ax.set_xlabel('抽蓄占比', fontproperties=font, rotation=-15)
+    ax.set_ylabel('光占比', fontproperties=font, rotation=50)
+    ax.set_zlabel('舍弃风光的比率', fontproperties=font)
+    plt.margins(x=0)
+    plt.margins(y=0)
+    plt.grid()
+    plt.colorbar(surf, ax=[ax], location='left', shrink=0.7, aspect=10, pad=0)
+    plt.savefig('./figs/舍弃风光率m1.png', dpi=900, transparent=True, pad_inches=0)
     plt.show()
 
     # 绘制对火电的需求

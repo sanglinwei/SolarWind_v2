@@ -232,7 +232,7 @@ if __name__ == '__main__':
     ratio_sw_mat = np.zeros((ratio_sw_np.shape[0], ratio_hp_np.shape[0]))
     for x_idx, v in enumerate(tqdm(ratio_hp_np)):
         for y_idx, r in enumerate(tqdm(ratio_sw_np)):
-            var.value = 10
+            var.value = 5
             C_d.value = 600
             C_ps.value = 30000
             drop_sw.value = 0
